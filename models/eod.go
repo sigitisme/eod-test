@@ -21,7 +21,8 @@ type EOD struct {
 
 //ToString is used for csv
 func (e *EOD) ToString() string {
-	return fmt.Sprintf("%d;%s;%d;%.2f;%s;%s;%.2f;%.2f;%s;%d;%s;",
-		e.ID, e.Name, e.Age, e.Balanced, e.No2bThreadNo, e.No3ThreadNo,
-		e.PreviousBalanced, e.AveragedBalanced, e.No1ThreadNo, e.FreeTransfer, e.No2aThreadNo)
+	// convert float to integer
+	return fmt.Sprintf("%d;%s;%d;%d;%s;%s;%d;%d;%s;%d;%s",
+		e.ID, e.Name, e.Age, int(e.Balanced), e.No2bThreadNo, e.No3ThreadNo,
+		int(e.PreviousBalanced), int(e.AveragedBalanced), e.No1ThreadNo, e.FreeTransfer, e.No2aThreadNo)
 }

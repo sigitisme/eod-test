@@ -19,6 +19,10 @@ func main() {
 	stage3MaxThreads := 8
 	inputPath := "csv/Before Eod.csv"
 	outputPath := "csv/After Eod.csv"
+	//freeCount is how many customers get bonus
+	freeCount := 100
+	//bonus is how much bonus will customer get
+	bonus := float64(10)
 
 	//read contents from csv
 	csvContents, err := readCsv(inputPath)
@@ -32,7 +36,7 @@ func main() {
 
 	stage1(stage1MaxThreads, &eodData)
 	stage2(stage2MaxThreads, &eodData)
-	stage3(stage3MaxThreads, &eodData)
+	stage3(stage3MaxThreads, &eodData, freeCount, bonus)
 
 	writeCsv(&eodData, outputPath)
 }
@@ -52,9 +56,6 @@ func readCsv(path string) ([][]string, error) {
 
 	//skip first row since it's a header
 	csvReader.Read()
-
-	done := make(chan bool)
-	defer close(done)
 
 	csvContents, err := csvReader.ReadAll()
 	if err != nil {
@@ -92,18 +93,26 @@ func prepareData(csvContents [][]string) []models.EOD {
 }
 
 //stage1 averages the balanced & previos balanced and the result is set to averaged balanced
-func stage1(stage1MaxThreads int, eodData *[]models.EOD) {
+func stage1(maxThreads int, eodData *[]models.EOD) {
 	wg := sync.WaitGroup{}
-	wg.Add(stage1MaxThreads)
+	wg.Add(maxThreads)
 
 	lengthRows := len(*eodData)
 
-	for i := 0; i < stage1MaxThreads; i++ {
-		n := lengthRows / stage1MaxThreads
+	for i := 0; i < maxThreads; i++ {
+		n := lengthRows / maxThreads
 
 		go func(i int) {
 			defer wg.Done()
-			for j := i * n; j < n*(i+1); j++ {
+
+			start := i * n
+			end := n * (i + 1)
+
+			if i == maxThreads-1 {
+				end = lengthRows
+			}
+
+			for j := start; j < end; j++ {
 				(*eodData)[j].AveragedBalanced = ((*eodData)[j].Balanced + (*eodData)[j].PreviousBalanced) / 2
 				(*eodData)[j].No1ThreadNo = fmt.Sprintf("%d", i)
 			}
@@ -113,23 +122,35 @@ func stage1(stage1MaxThreads int, eodData *[]models.EOD) {
 }
 
 //stage2 sets free transfer per user based on the balanced
-func stage2(stage2MaxThreads int, eodData *[]models.EOD) {
+func stage2(maxThreads int, eodData *[]models.EOD) {
 	wg := sync.WaitGroup{}
-	wg.Add(stage2MaxThreads)
+	wg.Add(maxThreads)
 
 	lengthRows := len(*eodData)
 
-	for i := 0; i < stage2MaxThreads; i++ {
-		n := lengthRows / stage2MaxThreads
+	for i := 0; i < maxThreads; i++ {
+		n := lengthRows / maxThreads
 
 		go func(i int) {
 			defer wg.Done()
-			for j := i * n; j < n*(i+1); j++ {
-				if (*eodData)[j].Balanced >= 100 && (*eodData)[j].Balanced <= 150 {
+
+			start := i * n
+			end := n * (i + 1)
+
+			if i == maxThreads-1 {
+				end = lengthRows
+			}
+
+			for j := start; j < end; j++ {
+				// I think di antara 100-150 is excluding 100 and 150, so the extreme value is 101 and 149, cmiiw
+				if (*eodData)[j].Balanced > 100 && (*eodData)[j].Balanced < 150 {
 					(*eodData)[j].FreeTransfer = 5
 					(*eodData)[j].No2aThreadNo = fmt.Sprintf("%d", i)
 				} else if (*eodData)[j].Balanced > 150 {
-					(*eodData)[j].FreeTransfer = 25
+					// (*eodData)[j].FreeTransfer = 25
+					// my bad, get it wrong,
+					// the right is to add the balance, not the free transfer
+					(*eodData)[j].Balanced += 25
 					(*eodData)[j].No2bThreadNo = fmt.Sprintf("%d", i)
 				}
 			}
@@ -138,21 +159,28 @@ func stage2(stage2MaxThreads int, eodData *[]models.EOD) {
 	wg.Wait()
 }
 
-//stage3 increase the balance of first 100 users by 10
-func stage3(stage3MaxThreads int, eodData *[]models.EOD) {
+//stage3 increase the balance of first *freeCount* users by bonus int
+func stage3(maxThreads int, eodData *[]models.EOD, freeCount int, bonus float64) {
 	wg := sync.WaitGroup{}
-	wg.Add(stage3MaxThreads)
+	wg.Add(maxThreads)
 
-	lengthRows := len(*eodData)
+	for i := 0; i < maxThreads; i++ {
+		lengthRows := len(*eodData)
 
-	for i := 0; i < stage3MaxThreads; i++ {
-		n := lengthRows / stage3MaxThreads
+		n := lengthRows / maxThreads
 
 		go func(i int) {
 			defer wg.Done()
-			for j := i * n; j < n*(i+1); j++ {
-				if (*eodData)[j].ID >= 0 && (*eodData)[j].ID <= 100 {
-					(*eodData)[j].Balanced += 10
+			start := i * n
+			end := n * (i + 1)
+
+			if i == maxThreads-1 {
+				end = lengthRows
+			}
+
+			for j := start; j < end; j++ {
+				if (*eodData)[j].ID >= 0 && (*eodData)[j].ID <= freeCount {
+					(*eodData)[j].Balanced += bonus
 				}
 				(*eodData)[j].No3ThreadNo = fmt.Sprintf("%d", i)
 			}
@@ -165,7 +193,8 @@ func stage3(stage3MaxThreads int, eodData *[]models.EOD) {
 func writeCsv(eodData *[]models.EOD, path string) error {
 	fOut, err := os.Create(path)
 	if err != nil {
-		log.Fatalf("Error creating file: %v", err)
+		log.Printf("Error creating file: %v", err)
+		return err
 	}
 
 	defer fOut.Close()

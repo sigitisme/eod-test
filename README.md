@@ -26,9 +26,12 @@ Because of that, I decided to use simple go routines and wait group to solve thi
 There are 6 main functions for this problem:
 1. readCsv is used to read data from csv files
 2. prepareData is used to convert string to eod struct according the After Eod.csv, this eod struct is a domain for this solution
-3. stage1 is used to calculate the average
+3. stage1 is used to calculate the average, averaged Balance will be updated
 4. stage2 is used to set the free transfer per user
-5. stage3 is used to give free credits for first 100 users
+   a. if the user meets the requirement of the stage 2a: Free Transfer and No2aThread will be updated
+   b. if the user meets the requirement of the stage 2b: Balanced and No2bThread will be updated
+   c. if the user doesn't meet the requirement stage 2a or 2b: No2aThread and No2bThread will be empty
+5. stage3 is used to give free credits for first 100 users: Balanced will be updated for 100 users only but No3ThreadNo will be updated to all users
 6. writeCsv is used to write csv file for After Eod.csv
 
 ## Requirement
@@ -36,3 +39,6 @@ Install [Go](https://golang.org/doc/install) on your system
 
 ## Run
 go run main.go
+
+## Test
+go test -p 1 -race ./... -coverprofile coverage.out  
